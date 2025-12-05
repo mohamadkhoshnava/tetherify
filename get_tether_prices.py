@@ -112,6 +112,9 @@ class CryptoPriceFetcher:
                             # Clean name (remove "مشاهده" etc if present)
                             name = re.sub(r'\[.*?\]', '', name_text).strip()
                             
+                            if "پول نو" in name:
+                                continue
+                            
                             # Extract URL if available
                             link = name_col.find('a')
                             exchange_url = "https://www.tgju.org" + link['href'] if link else "https://www.tgju.org"
