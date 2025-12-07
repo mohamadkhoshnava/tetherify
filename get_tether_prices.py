@@ -9,8 +9,8 @@ from dotenv import load_dotenv
 from bs4 import BeautifulSoup
 import re
 
-# Load environment variables from config.env
-load_dotenv("config.env")
+# Load environment variables (defaults to .env)
+load_dotenv()
 
 # --- Logging Configuration ---
 logging.basicConfig(
