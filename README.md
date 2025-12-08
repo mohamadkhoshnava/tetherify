@@ -12,22 +12,13 @@
     TELEGRAM_BOT_TOKEN=your_bot_token_here
     TELEGRAM_CHANNEL_ID=@your_channel_id
     ```
-
-## Scheduling (Crontab)
-
-To run the script automatically at regular intervals (e.g., every 5 minutes), you can use `crontab`.
-
-1.  **Open your crontab configuration:**
-    Run the following command in your terminal:
+3. **Install dependencies:**
+    Make sure you have Python and uv installed, then run:
     ```bash
-    crontab -e
+    uv sync
     ```
-
-2.  **Add the cron job:**
-    Add the following line to the end of the file. Make sure to replace `/path/to/python` and `/path/to/project` with your actual paths.
-
-    ```cron
-    */5 * * * * cd /path/to/project && /path/to/python get_tether_prices.py >> cron.log 2>&1
+4. **Run the application:**
+    Start the application using:
+    ```bash
+    uv run get_tether_prices.py
     ```
-
-    *Tip: You can find your python path by running `which python3` and your project path by running `pwd` inside the project folder.*
