@@ -1,0 +1,12 @@
+[project]
+name = "tetherify"
+version = "0.1.0"
+description = "tetherify - Tether Price Notifier Bot"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.13.2",
+    "apscheduler>=3.11.1",
+    "bs4>=0.0.2",
+    "dotenv>=0.9.9",
+]
