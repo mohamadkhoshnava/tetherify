@@ -51,6 +51,16 @@ jobs:
             node --check "$f"
           done
 
+      # A fresh checkout has no .tgcloud/ state (it is git-ignored), so the CLI
+      # cannot tell whether the cloud moved under it and refuses to push. fetch
+      # pulls the deployed reference copy without touching the working files,
+      # which establishes that baseline honestly — unlike push --force, which
+      # would paper over a genuine conflict.
+      - name: Sync deployment baseline
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx tgcloud fetch
+
       - name: Deploy
         env:
           TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
