@@ -65,7 +65,8 @@ jobs:
       - name: Refresh command menu
         env:
           TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
-        run: npx tgcloud run handlers/shipping_query '{ job: "setup" }'
+        run: |
+          npx tgcloud run handlers/shipping_query '{ job: "setup" }'
 
       - name: Verify webhook
         env:
