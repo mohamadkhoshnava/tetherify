@@ -58,6 +58,35 @@ that produced it.
 Plain language works too: "قیمت چنده؟" gets a price card, and a bare number
 offers to set an alert.
 
+### Forced channel membership
+Private-chat users must be members of [@tetherify](https://t.me/tetherify)
+before the bot answers them — including `/start`. Non-members get a join card
+with a link and an "I joined, check again" button that re-checks without the
+cache.
+
+Three deliberate choices:
+
+* **Groups are not gated.** A group is already a shared space; gating it would
+  punish every member for one person's membership.
+* **It fails open.** If `getChatMember` errors — the bot lost its admin right in
+  the channel, the channel was renamed, Telegram hiccuped — users are let
+  through and the failure is logged. A membership gate is a growth feature, not
+  a security boundary, so the safe failure is not to lock everyone out of a
+  working bot.
+* **Confirmed memberships are cached** (10 minutes, tunable via
+  `memberCacheMin`), otherwise an active conversation would call
+  `getChatMember` on every message. Negatives are cached for 15 seconds only,
+  so someone who has just joined is not left waiting.
+
+The bot must be an **admin of the channel** to read membership. Verify with:
+
+```bash
+npx tgcloud run handlers/shipping_query '{ job: "gatecheck", userId: 123456 }'
+```
+
+Toggle with `/forcejoin on|off`. Inline mode is intentionally not gated — it is
+used from other people's chats, where a join prompt has nowhere sensible to go.
+
 ### In groups
 Commands work as above. A group admin can `/subscribe` to receive the daily
 digest. The bot greets a group when added and stays quiet otherwise — it only
@@ -89,7 +118,8 @@ change versus yesterday, and a seven-day sparkline to every subscribed chat.
 ### Admin
 `/stats` · `/health` · `/raw` · `/digest` · `/refresh` · `/broadcast` · `/config` ·
 `/set <key> <value>` · `/block` · `/unblock` · `/ban` · `/unban` ·
-`/channel` (post now; `/channel dry` previews without sending) · `/setchannel @name`
+`/channel` (post now; `/channel dry` previews without sending) · `/setchannel @name` ·
+`/forcejoin on|off`
 
 Thresholds are tunable at runtime without a redeploy — `/set devTolerancePct 3`
 takes effect on the next fetch.
@@ -111,6 +141,7 @@ lib/
   keyboard.js              inline keyboards
   digest.js                the daily report
   channel.js               the hourly public channel post
+  gate.js                  forced channel membership for private chats
   commands.js              command routing
 handlers/
   message.js               private + group messages
@@ -137,6 +168,10 @@ deployed bot, not a second copy running on a CI runner:
 | `0 * * * *` | `channel` | Hourly summary to @tetherify (also takes a sample) |
 | `30 * * * *` | `sample` | Market sample for the daily average |
 | `30 17 * * *` | `digest` | Daily report at 21:00 Tehran to subscribed chats |
+
+A fourth job, `gatecheck`, is a manual diagnostic rather than a schedule — it
+reports whether the bot can read channel membership at all, and what it sees for
+a given user.
 
 The bot also samples opportunistically on user traffic, so if CI is paused the
 daily average loses resolution rather than disappearing.

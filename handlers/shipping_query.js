@@ -18,6 +18,7 @@
 import { api } from 'sdk';
 import { runDigest } from 'lib/digest';
 import { postToChannel } from 'lib/channel';
+import { isMember, gateEnabled, gateTarget, channelLink } from 'lib/gate';
 import { getSnapshot, processAlerts } from 'lib/prices';
 import { recordSample, rollupDay } from 'lib/store';
 import { tehran } from 'lib/fa';
@@ -97,6 +98,37 @@ async function setupJob() {
   };
 }
 
+/**
+ * Diagnose the membership gate for one user id. Answers the two questions that
+ * actually go wrong in practice: can the bot read the channel's membership at
+ * all, and what does it see for this user.
+ */
+async function gatecheckJob(userId) {
+  const target = await gateTarget();
+  const enabled = await gateEnabled();
+  const out = { enabled, target, link: channelLink(target), userId };
+
+  if (!userId) {
+    out.note = 'pass a userId: { job: "gatecheck", userId: 123 }';
+    return out;
+  }
+
+  try {
+    const member = await api.getChatMember({ chat_id: target, user_id: userId });
+    out.rawStatus = member && member.status;
+    out.isMember = await isMember(userId, { fresh: true });
+    out.canReadMembership = true;
+  } catch (err) {
+    // This is the failure that matters: if the bot cannot read membership, the
+    // gate fails open and silently lets everyone through.
+    out.canReadMembership = false;
+    out.code = err && err.code;
+    out.description = err && err.description;
+    out.hint = 'ربات باید در کانال ادمین باشد تا بتواند عضویت را بخواند.';
+  }
+  return out;
+}
+
 export default async function (input = {}) {
   const payload = input && typeof input === 'object' ? input : {};
 
@@ -119,6 +151,9 @@ export default async function (input = {}) {
       break;
     case 'channel':
       result = await postToChannel({ force: !!payload.force, dryRun: !!payload.dryRun });
+      break;
+    case 'gatecheck':
+      result = await gatecheckJob(payload.userId);
       break;
     case 'setup':
       result = await setupJob();

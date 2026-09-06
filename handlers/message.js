@@ -3,6 +3,7 @@
 import { parseCommand, dispatch, send } from 'lib/commands';
 import { touchChat, getChat, isAdmin } from 'lib/store';
 import { maybeRunDigest } from 'lib/digest';
+import { ensureMember } from 'lib/gate';
 import { refresh } from 'lib/prices';
 import { priceCard } from 'lib/format';
 import { mainKeyboard } from 'lib/keyboard';
@@ -22,6 +23,10 @@ export default async function (message, ctx) {
 
   const record = await touchChat(chat, userId);
   if (record && record.banned) return;
+
+  // Forced channel membership, private chats only. Non-members get the join
+  // prompt and nothing else — including /start.
+  if (!(await ensureMember(chat, userId))) return;
 
   const base = { chat, chatId, userId, from, message, update: ctx && ctx.update };
 

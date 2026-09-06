@@ -12,6 +12,7 @@ import {
 } from 'lib/format';
 import { mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard } from 'lib/keyboard';
 import { getDay, recentDays, setSubscribed, isAdmin, touchChat } from 'lib/store';
+import { isMember, gateEnabled, gateTarget, gatePrompt, forgetMembership } from 'lib/gate';
 
 async function edit(query, text, markup) {
   try {
@@ -34,9 +35,38 @@ export default async function (query) {
 
   const data = query.data;
   const [key, arg] = data.split(':');
+  const userId = query.from && query.from.id;
+  const isPrivate = query.message.chat.type === 'private';
   let toast = '';
 
   try {
+    // The "I joined" button: re-check without the cache, then let them in.
+    if (key === CB.JOIN) {
+      await forgetMembership(userId);
+      const ok = await isMember(userId, { fresh: true });
+      if (ok) {
+        const snapshot = await refresh();
+        await edit(query, priceCard(snapshot), mainKeyboard());
+        toast = 'خوش آمدید! ✅';
+      } else {
+        toast = 'هنوز عضو کانال نیستید';
+      }
+      await api.answerCallbackQuery({
+        callback_query_id: query.id,
+        text: toast,
+        show_alert: !ok,
+      });
+      return;
+    }
+
+    // Every other button in a private chat is gated the same way messages are.
+    if (isPrivate && await gateEnabled() && !(await isMember(userId))) {
+      const prompt = await gatePrompt(await gateTarget());
+      await edit(query, prompt.text, prompt.reply_markup);
+      await api.answerCallbackQuery({ callback_query_id: query.id, text: 'اول عضو کانال شوید' });
+      return;
+    }
+
     switch (key) {
       case 'noop':
         break;
