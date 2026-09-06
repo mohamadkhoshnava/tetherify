@@ -8,13 +8,16 @@
 // and this bot has no payments at all.
 //
 // It is driven by .github/workflows/cron.yml:
-//     tgcloud run handlers/shipping_query '{ job: "digest" }'
+//     tgcloud run handlers/shipping_query '{ job: "sample" }'    every 30 min
+//     tgcloud run handlers/shipping_query '{ job: "channel" }'   hourly
+//     tgcloud run handlers/shipping_query '{ job: "digest" }'    once a day
 //
 // A real ShippingQuery (should Telegram ever send one) carries `invoice_payload`
 // and is ignored, so the guard below keeps the two paths from ever crossing.
 
 import { api } from 'sdk';
 import { runDigest } from 'lib/digest';
+import { postToChannel } from 'lib/channel';
 import { getSnapshot, processAlerts } from 'lib/prices';
 import { recordSample, rollupDay } from 'lib/store';
 import { tehran } from 'lib/fa';
@@ -113,6 +116,9 @@ export default async function (input = {}) {
       break;
     case 'sample':
       result = await sampleJob();
+      break;
+    case 'channel':
+      result = await postToChannel({ force: !!payload.force, dryRun: !!payload.dryRun });
       break;
     case 'setup':
       result = await setupJob();

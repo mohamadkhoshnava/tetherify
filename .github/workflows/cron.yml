@@ -13,8 +13,11 @@ name: Scheduled jobs
 
 on:
   schedule:
-    # Market sample every 30 minutes — the raw material for the daily average.
-    - cron: '*/30 * * * *'
+    # Market sample at :30 — the raw material for the daily average.
+    # (The hourly channel post below samples too, so :00 is already covered.)
+    - cron: '30 * * * *'
+    # Public channel post, once an hour on the hour.
+    - cron: '0 * * * *'
     # Daily digest at 21:00 Tehran (17:30 UTC).
     - cron: '30 17 * * *'
   workflow_dispatch:
@@ -22,10 +25,10 @@ on:
       job:
         description: 'Job to run'
         type: choice
-        options: [sample, digest, setup]
+        options: [sample, channel, digest, setup]
         default: sample
       force:
-        description: 'For digest: broadcast even if already reported today'
+        description: 'For digest/channel: run even if already done this period'
         type: boolean
         default: false
 
@@ -55,6 +58,9 @@ jobs:
             echo "force=${{ inputs.force }}" >> "$GITHUB_OUTPUT"
           elif [ "${{ github.event.schedule }}" = "30 17 * * *" ]; then
             echo "job=digest" >> "$GITHUB_OUTPUT"
+            echo "force=false" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 * * * *" ]; then
+            echo "job=channel" >> "$GITHUB_OUTPUT"
             echo "force=false" >> "$GITHUB_OUTPUT"
           else
             echo "job=sample" >> "$GITHUB_OUTPUT"

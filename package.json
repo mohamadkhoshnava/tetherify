@@ -16,7 +16,8 @@
     "check": "for f in schema.js lib/*.js handlers/*.js; do node --check \"$f\" || exit 1; done",
     "job:sample": "tgcloud run handlers/shipping_query '{ job: \"sample\" }'",
     "job:digest": "tgcloud run handlers/shipping_query '{ job: \"digest\", dryRun: true, force: true }'",
-    "job:setup": "tgcloud run handlers/shipping_query '{ job: \"setup\" }'"
+    "job:setup": "tgcloud run handlers/shipping_query '{ job: \"setup\" }'",
+    "job:channel": "tgcloud run handlers/shipping_query '{ job: \"channel\", dryRun: true, force: true }'"
   },
   "description": "Telegram bot that reports Iranian USDT prices from ~90 exchanges, filtering out erroneous quotes. Runs on Telegram's serverless platform.",
   "license": "MIT"

@@ -71,13 +71,25 @@ exchange — `@tetherifybot نوبیتکس`.
 > **Inline mode must be switched on once in @BotFather** (`/setinline`) — it is
 > off by default for every new bot.
 
+### Channel auto-post
+Every hour on the hour the bot publishes a compact market summary to
+[@tetherify](https://t.me/tetherify) — cheapest buy, best sell, average, market
+range, and the move since the start of the day. (The original Python script did
+this every 10 minutes; the cadence is now hourly.)
+
+The target is `CHANNEL_ID` in `lib/config.js`, overridable at runtime with
+`/setchannel @name`. The bot must be an admin of the channel with permission to
+post. A guard on the stored `lastChannelPostAt` keeps a retry or a manual run
+from double-posting.
+
 ### Daily digest
 At 21:00 Tehran the bot posts the day's average, low, high, open/close, the
 change versus yesterday, and a seven-day sparkline to every subscribed chat.
 
 ### Admin
 `/stats` · `/health` · `/raw` · `/digest` · `/refresh` · `/broadcast` · `/config` ·
-`/set <key> <value>` · `/block` · `/unblock` · `/ban` · `/unban`
+`/set <key> <value>` · `/block` · `/unblock` · `/ban` · `/unban` ·
+`/channel` (post now; `/channel dry` previews without sending) · `/setchannel @name`
 
 Thresholds are tunable at runtime without a redeploy — `/set devTolerancePct 3`
 takes effect on the next fetch.
@@ -98,6 +110,7 @@ lib/
   format.js                all user-facing messages
   keyboard.js              inline keyboards
   digest.js                the daily report
+  channel.js               the hourly public channel post
   commands.js              command routing
 handlers/
   message.js               private + group messages
@@ -117,8 +130,13 @@ guard ignores anything that looks like a genuine shipping query.
 
 `.github/workflows/cron.yml` drives it — `tgcloud run` executes the handler **on
 the platform** against the real database, so these are true scheduled runs of the
-deployed bot, not a second copy running on a CI runner. A market sample is taken
-every 30 minutes and the digest fires at 17:30 UTC.
+deployed bot, not a second copy running on a CI runner:
+
+| Cron (UTC) | Job | What it does |
+|---|---|---|
+| `0 * * * *` | `channel` | Hourly summary to @tetherify (also takes a sample) |
+| `30 * * * *` | `sample` | Market sample for the daily average |
+| `30 17 * * *` | `digest` | Daily report at 21:00 Tehran to subscribed chats |
 
 The bot also samples opportunistically on user traffic, so if CI is paused the
 daily average loses resolution rather than disappearing.
@@ -153,6 +171,7 @@ npm run check            # syntax-check every deployed module
 npm run status           # local vs deployed
 npm run job:sample       # take a market sample now
 npm run job:digest       # build the daily digest without sending it
+npm run job:channel      # preview the channel post without sending it
 npx tgcloud run handlers/message '{ chat: { id: 123, type: "private" }, text: "/price" }'
 ```
 
@@ -186,6 +205,12 @@ Add one repository secret — **`TGCLOUD_TOKEN`** (Settings → Secrets and vari
   it in anyway.
 * If a token is ever exposed, rotate it in @BotFather — revoking the API token
   and reissuing the CLI access token are both one command there.
+
+> **History note:** commits before this rewrite (`71eb8ed`, `26a94ba`) contain a
+> `config.env` with a live bot token. Deleting the file did not remove it from
+> git history, and this repository is public. That token must be revoked in
+> @BotFather; rewriting history alone is not sufficient once a secret has been
+> pushed.
 
 ---
 
