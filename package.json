@@ -1,0 +1,23 @@
+{
+  "devDependencies": {
+    "@tgcloud/cli": "^0.1.2"
+  },
+  "name": "tetherify",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "tgcloud push",
+    "status": "tgcloud status",
+    "diff": "tgcloud diff",
+    "migrate": "tgcloud migrate",
+    "run": "tgcloud run",
+    "webhook": "tgcloud webhook",
+    "check": "for f in schema.js lib/*.js handlers/*.js; do node --check \"$f\" || exit 1; done",
+    "job:sample": "tgcloud run handlers/shipping_query '{ job: \"sample\" }'",
+    "job:digest": "tgcloud run handlers/shipping_query '{ job: \"digest\", dryRun: true, force: true }'",
+    "job:setup": "tgcloud run handlers/shipping_query '{ job: \"setup\" }'"
+  },
+  "description": "Telegram bot that reports Iranian USDT prices from ~90 exchanges, filtering out erroneous quotes. Runs on Telegram's serverless platform.",
+  "license": "MIT"
+}

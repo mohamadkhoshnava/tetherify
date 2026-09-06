@@ -1,0 +1,69 @@
+name: Scheduled jobs
+
+# Telegram's serverless platform has no cron, so the clock lives here.
+# `tgcloud run` executes a handler ON the platform against the real database,
+# using the code in this checkout — so these are true scheduled invocations of
+# the deployed bot, not a second copy of it running on a GitHub runner.
+#
+# Times are UTC. Tehran is UTC+03:30 year-round (Iran has no DST).
+#
+# Note: GitHub disables scheduled workflows in a repository with no activity for
+# 60 days, and may delay a run under load. The bot also samples opportunistically
+# on user traffic, so a missed run degrades resolution rather than breaking it.
+
+on:
+  schedule:
+    # Market sample every 30 minutes — the raw material for the daily average.
+    - cron: '*/30 * * * *'
+    # Daily digest at 21:00 Tehran (17:30 UTC).
+    - cron: '30 17 * * *'
+  workflow_dispatch:
+    inputs:
+      job:
+        description: 'Job to run'
+        type: choice
+        options: [sample, digest, setup]
+        default: sample
+      force:
+        description: 'For digest: broadcast even if already reported today'
+        type: boolean
+        default: false
+
+concurrency:
+  group: tgcloud-jobs
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - run: npm ci
+
+      - name: Pick the job for this trigger
+        id: pick
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "job=${{ inputs.job }}" >> "$GITHUB_OUTPUT"
+            echo "force=${{ inputs.force }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "30 17 * * *" ]; then
+            echo "job=digest" >> "$GITHUB_OUTPUT"
+            echo "force=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "job=sample" >> "$GITHUB_OUTPUT"
+            echo "force=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run ${{ steps.pick.outputs.job }}
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: |
+          npx tgcloud run handlers/shipping_query \
+            "{ job: '${{ steps.pick.outputs.job }}', force: ${{ steps.pick.outputs.force }} }"

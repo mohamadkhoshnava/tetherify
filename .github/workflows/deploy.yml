@@ -1,0 +1,73 @@
+name: Deploy
+
+# Deploys the bot to Telegram's serverless platform on every push to main.
+#
+# Requires one repository secret:
+#   TGCLOUD_TOKEN — the CLI access token from @BotFather → your bot →
+#                   Serverless → CLI Access. Format: app<id>:<secret>.
+#
+# Schema changes are deliberately NOT applied automatically: a code deploy must
+# never surprise you with a database migration. Run the "migrate" input by hand
+# from the Actions tab once you have reviewed what `push` reports.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'schema.js'
+      - 'lib/**'
+      - 'handlers/**'
+      - 'package.json'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      migrate:
+        description: 'Also apply pending schema changes (safe changes only)'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-tgcloud
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install CLI
+        run: npm ci
+
+      - name: Syntax check every deployed module
+        run: |
+          for f in schema.js lib/*.js handlers/*.js; do
+            node --check "$f"
+          done
+
+      - name: Deploy
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx tgcloud push
+
+      - name: Apply schema changes
+        if: inputs.migrate
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx tgcloud migrate --safe
+
+      - name: Refresh command menu
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx tgcloud run handlers/shipping_query '{ job: "setup" }'
+
+      - name: Verify webhook
+        env:
+          TGCLOUD_TOKEN: ${{ secrets.TGCLOUD_TOKEN }}
+        run: npx tgcloud webhook
