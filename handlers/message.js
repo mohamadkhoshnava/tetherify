@@ -57,63 +57,78 @@ export default async function (message, ctx) {
 
     if (!text.trim()) return;
 
-    // 1. Reply keyboard buttons in PV
+    // 1. Reply keyboard buttons and natural language in PV
     if (text === BTN.WIDGET || WIDGET_WORDS.test(text)) {
       const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market);
-      if (sent) return;
-      await send(chatId, marketOverviewCard(market), { reply_markup: mainKeyboard() });
+      const caption = marketOverviewCard(market);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
       return;
     }
 
     if (text === BTN.CRYPTO || CRYPTO_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, cryptoCard(market), { reply_markup: marketKeyboard('crypto') });
+      const caption = cryptoCard(market);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'crypto', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('crypto') });
       return;
     }
 
     if (text === BTN.GOLD || GOLD_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, goldCard(market), { reply_markup: marketKeyboard('gold') });
+      const caption = goldCard(market);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'gold', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('gold') });
       return;
     }
 
     if (text === BTN.FIAT || FIAT_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, fiatCard(market), { reply_markup: marketKeyboard('fiat') });
+      const caption = fiatCard(market);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'fiat', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('fiat') });
       return;
     }
 
     if (text === BTN.TETHER || PRICE_WORDS.test(text)) {
-      const snapshot = await refresh();
-      await send(chatId, priceCard(snapshot), { reply_markup: mainKeyboard() });
+      const market = await getMarketOverview();
+      const caption = priceCard(market.tether || (await refresh()));
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'tether', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
       return;
     }
 
     if (text === BTN.TOP) {
-      const snapshot = await refresh();
-      await send(chatId, topMessage(snapshot), { reply_markup: backKeyboard() });
+      const market = await getMarketOverview();
+      const caption = topMessage(market.tether || (await refresh()));
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'tether', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: backKeyboard() });
       return;
     }
 
     if (text === BTN.CHART) {
-      const snapshot = await refresh();
+      const market = await getMarketOverview();
+      const snapshot = market.tether || (await refresh());
       const days = await recentDays(7);
-      await send(chatId, chartMessage(days, snapshot), { reply_markup: backKeyboard() });
+      const caption = chartMessage(days, snapshot);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: backKeyboard() });
       return;
     }
 
     if (text === BTN.CALC) {
       const market = await getMarketOverview();
       const rate = market.usdtMedian || 255000;
-      await send(chatId,
+      const caption =
         `🧮 <b>ماشین‌حساب و تبدیل نرخ لحظه‌ای</b>\n\n` +
-        `برای تبدیل کافیست مقدار و واحد را ارسال کنید:\n` +
+        `از ویجت لمسی زیر استفاده کنید یا بنویسید:\n` +
         `• <code>100 usdt</code> (تبدیل ۱۰۰ تتر به تومان)\n` +
         `• <code>5000000 toman</code> (تبدیل ۵ میلیون تومان به تتر)\n` +
         `• <code>0.2 btc</code> (تبدیل بیت‌کوین به تومان)\n\n` +
         `یا از دستور <code>/calc 100 usdt</code> استفاده کنید.\n\n` +
-        `<i>💡 نرخ مبنای هر تتر: <b>${faNum(rate)}</b> تومان</i>`);
+        `<i>💡 نرخ مبنای هر تتر: <b>${faNum(rate)}</b> تومان</i>`;
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('calc') });
       return;
     }
 
