@@ -203,7 +203,7 @@ export default async function (query) {
       results: results.slice(0, 30),
       cache_time: 30,
       is_personal: false,
-      button: { text: '💎 باز کردن ربات تترایفای', start_parameter: 'inline' },
+      button: { text: '💎 باز کردن ربات تتریفای', start_parameter: 'inline' },
     });
   } catch (err) {
     console.warn('answerInlineQuery failed:', err && err.description);
