@@ -131,7 +131,7 @@ export default async function (query) {
       case CB.WIDGET: {
         const market = await getMarketOverview();
         const sent = await sendMarketWidget(query.message.chat.id, market);
-        toast = sent ? 'ویجت زنده ارسال شد 📱' : 'پیش‌نمایش تابلوی زنده فعال شد';
+        toast = sent ? 'تابلوی بازار ارسال شد 📱' : 'تابلوی بازار فعال شد';
         if (!sent) {
           await edit(query, marketOverviewCard(market), marketKeyboard('market'));
         }

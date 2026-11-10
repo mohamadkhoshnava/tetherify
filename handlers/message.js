@@ -58,7 +58,7 @@ export default async function (message, ctx) {
     if (!text.trim()) return;
 
     // 1. Reply keyboard buttons and natural language in PV
-    if (text === BTN.WIDGET || WIDGET_WORDS.test(text)) {
+    if (text === BTN.MARKET || WIDGET_WORDS.test(text)) {
       const market = await getMarketOverview();
       const caption = marketOverviewCard(market);
       const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
@@ -121,7 +121,7 @@ export default async function (message, ctx) {
       const rate = market.usdtMedian || 255000;
       const caption =
         `🧮 <b>ماشین‌حساب و تبدیل نرخ لحظه‌ای</b>\n\n` +
-        `از ویجت لمسی زیر استفاده کنید یا بنویسید:\n` +
+        `از دکمه‌های لمسی زیر استفاده کنید یا بنویسید:\n` +
         `• <code>100 usdt</code> (تبدیل ۱۰۰ تتر به تومان)\n` +
         `• <code>5000000 toman</code> (تبدیل ۵ میلیون تومان به تتر)\n` +
         `• <code>0.2 btc</code> (تبدیل بیت‌کوین به تومان)\n\n` +
@@ -156,11 +156,13 @@ export default async function (message, ctx) {
 
       if (unit === 'toman' || unit === 'irr' || unit === 'تومان') {
         const usdtVal = (amount / rate).toFixed(2);
-        await send(chatId,
+        const caption =
           `🧮 <b>نتیجه تبدیل</b>\n\n` +
           `<b>${faNum(amount)}</b> تومان برابر است با:\n` +
           `💵 <b>${toFaDigits(usdtVal)}</b> تتر (USDT)\n\n` +
-          `<i>مبنا: تتر ${faNum(rate)} تومان</i>`);
+          `<i>مبنا: تتر ${faNum(rate)} تومان</i>`;
+        const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
+        if (!sent) await send(chatId, caption);
         return;
       }
 
@@ -168,20 +170,24 @@ export default async function (message, ctx) {
         const btc = (market.crypto || []).find((c) => c.symbol === 'BTC');
         const btcUsd = (btc && btc.usdPrice) || 73000;
         const tomanVal = Math.round(amount * btcUsd * rate);
-        await send(chatId,
+        const caption =
           `🧮 <b>نتیجه تبدیل بیت‌کوین</b>\n\n` +
           `<b>${toFaDigits(amount)}</b> BTC برابر است با:\n` +
           `🇮🇷 <b>${faNum(tomanVal)}</b> تومان\n\n` +
-          `<i>مبنا: بیت‌کوین $${toFaDigits(faNum(btcUsd))}</i>`);
+          `<i>مبنا: بیت‌کوین $${toFaDigits(faNum(btcUsd))}</i>`;
+        const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
+        if (!sent) await send(chatId, caption);
         return;
       }
 
       const tomanVal = Math.round(amount * rate);
-      await send(chatId,
+      const caption =
         `🧮 <b>نتیجه تبدیل تتر</b>\n\n` +
         `<b>${toFaDigits(amount)}</b> تتر (USDT) برابر است با:\n` +
         `🇮🇷 <b>${faNum(tomanVal)}</b> تومان\n\n` +
-        `<i>مبنا: هر تتر ${faNum(rate)} تومان</i>`);
+        `<i>مبنا: هر تتر ${faNum(rate)} تومان</i>`;
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
+      if (!sent) await send(chatId, caption);
       return;
     }
 
@@ -196,9 +202,12 @@ export default async function (message, ctx) {
       return;
     }
 
-    await send(chatId,
-      `سلام! 👋\nبرای دیدن قیمت لحظه‌ای /price را بزنید یا از دکمه‌های زیر استفاده کنید.`,
-      { reply_markup: mainKeyboard() });
+    const market = await getMarketOverview();
+    const caption = startMessage(from ? from.first_name : '');
+    const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
+    if (!sent) {
+      await send(chatId, caption, { reply_markup: mainKeyboard() });
+    }
   } catch (err) {
     console.error('message handler failed:', err && (err.description || err.message));
     if (isPrivate) {
