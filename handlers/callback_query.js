@@ -8,14 +8,20 @@ import { CB } from 'lib/config';
 import { refresh } from 'lib/prices';
 import { getMarketOverview } from 'lib/market';
 import { sendMarketWidget } from 'lib/widget';
+import { faNum } from 'lib/fa';
 import {
   priceCard, listMessage, topMessage, excludedMessage, avgMessage, chartMessage,
   helpMessage, startMessage, cryptoCard, goldCard, fiatCard, marketOverviewCard,
+  alertMenuMessage, alertListMessage, settingsMessage,
 } from 'lib/format';
 import {
   mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard, marketKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, alertListKeyboard, settingsKeyboard,
 } from 'lib/keyboard';
-import { getDay, recentDays, setSubscribed, isAdmin, touchChat } from 'lib/store';
+import {
+  getDay, recentDays, setSubscribed, isAdmin, touchChat,
+  addAlert, listAlerts, removeAlert, clearAlerts,
+} from 'lib/store';
 import { isMember, gateEnabled, gateTarget, gatePrompt, forgetMembership } from 'lib/gate';
 
 async function edit(query, text, markup) {
@@ -75,16 +81,69 @@ export default async function (query) {
       case 'noop':
         break;
 
-      case CB.REFRESH: {
-        const snapshot = await refresh({ force: true });
-        await edit(query, priceCard(snapshot), mainKeyboard());
-        toast = 'به‌روز شد';
+      case CB.REFRESH:
+      case CB.HOME:
+      case CB.TF_24H: {
+        const snapshot = await refresh({ force: key === CB.REFRESH });
+        const today = await getDay(snapshot.tehranNow.day);
+        const days = await recentDays(7);
+        await edit(query, priceCard(snapshot, { timeframe: '24h', today, days }), priceKeyboard(snapshot, { activeTimeframe: '24h' }));
+        toast = key === CB.REFRESH ? 'به‌روزرسانی شد 🔄' : '';
         break;
       }
 
-      case CB.HOME: {
+      case CB.TF_7D: {
         const snapshot = await refresh();
-        await edit(query, priceCard(snapshot), mainKeyboard());
+        const today = await getDay(snapshot.tehranNow.day);
+        const days = await recentDays(7);
+        await edit(query, priceCard(snapshot, { timeframe: '7d', today, days }), priceKeyboard(snapshot, { activeTimeframe: '7d' }));
+        toast = 'نمای ۷ روزه 🥞';
+        break;
+      }
+
+      case CB.ALERT_MENU: {
+        const snapshot = await refresh();
+        const alerts = await listAlerts(query.message.chat.id);
+        const current = Math.round(snapshot.stats.median);
+        await edit(query, alertMenuMessage(current, alerts), alertInteractiveKeyboard(current, alerts));
+        break;
+      }
+
+      case CB.ALERT_SET: {
+        const target = Number(arg);
+        if (target > 0) {
+          const snapshot = await refresh();
+          const current = Math.round(snapshot.stats.median);
+          const direction = target >= current ? 'above' : 'below';
+          await addAlert(query.message.chat.id, userId, direction, target);
+          const alerts = await listAlerts(query.message.chat.id);
+          await edit(query, alertMenuMessage(current, alerts), alertInteractiveKeyboard(current, alerts));
+          toast = `✅ هشدار ${faNum(target)} ت ثبت شد!`;
+        }
+        break;
+      }
+
+      case CB.ALERT_CLEAR: {
+        await clearAlerts(query.message.chat.id);
+        const snapshot = await refresh();
+        const current = Math.round(snapshot.stats.median);
+        await edit(query, alertMenuMessage(current, []), alertInteractiveKeyboard(current, []));
+        toast = '🗑 همه هشدارها حذف شد';
+        break;
+      }
+
+      case CB.ALERT_DEL: {
+        if (arg) {
+          await removeAlert(Number(arg), query.message.chat.id);
+          toast = '🗑 هشدار حذف شد';
+        }
+        const alerts = await listAlerts(query.message.chat.id);
+        await edit(query, alertListMessage(alerts), alertListKeyboard(alerts));
+        break;
+      }
+
+      case CB.SETTINGS: {
+        await edit(query, settingsMessage(false), settingsKeyboard(false));
         break;
       }
 

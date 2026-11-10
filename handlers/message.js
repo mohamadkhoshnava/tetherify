@@ -1,7 +1,7 @@
 // handlers/message.js — every incoming message, in private chats and groups.
 
 import { parseCommand, dispatch, send } from 'lib/commands';
-import { touchChat, getChat, isAdmin, recentDays } from 'lib/store';
+import { touchChat, getChat, isAdmin, recentDays, getDay, addAlert, listAlerts } from 'lib/store';
 import { maybeRunDigest } from 'lib/digest';
 import { ensureMember } from 'lib/gate';
 import { refresh } from 'lib/prices';
@@ -9,9 +9,12 @@ import { getMarketOverview } from 'lib/market';
 import { sendMarketWidget } from 'lib/widget';
 import {
   priceCard, cryptoCard, goldCard, fiatCard, marketOverviewCard,
-  topMessage, chartMessage, helpMessage,
+  topMessage, chartMessage, helpMessage, alertMenuMessage, settingsMessage,
 } from 'lib/format';
-import { mainKeyboard, marketKeyboard, backKeyboard, BTN, pvReplyKeyboard } from 'lib/keyboard';
+import {
+  mainKeyboard, marketKeyboard, backKeyboard, BTN, pvReplyKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, settingsKeyboard,
+} from 'lib/keyboard';
 import { toEnDigits, faNum, toFaDigits } from 'lib/fa';
 
 // Natural language matchers
@@ -57,7 +60,76 @@ export default async function (message, ctx) {
 
     if (!text.trim()) return;
 
-    // 1. Reply keyboard buttons and natural language in PV
+    // 1. Reply keyboard 1-tap quick actions inspired by Dollar Chande
+    if (/^💸\s*کپی/i.test(text)) {
+      const rawNum = text.match(/[\d,]+/);
+      const numStr = rawNum ? rawNum[0].replace(/,/g, '') : '255000';
+      const enNum = toEnDigits(numStr);
+      await send(chatId, `📋 <b>کپی سریع نرخ تتر:</b>\n<code>${enNum}</code>\n<i>(روی عدد لمس کنید تا در کلیپ‌بورد کپی شود)</i>`);
+      return;
+    }
+
+    if (/^⏰\s*رد\s*شد\s*از/i.test(text)) {
+      const rawNum = text.match(/[\d,]+/);
+      const numStr = rawNum ? rawNum[0].replace(/,/g, '') : '';
+      const target = Number(toEnDigits(numStr));
+      if (target > 0) {
+        const snapshot = await refresh();
+        const current = Math.round(snapshot.stats.median);
+        const direction = target >= current ? 'above' : 'below';
+        await addAlert(chatId, userId, direction, target);
+        await send(chatId, `✅ <b>هشدار هوشمند ثبت شد!</b>\n\nهر زمان قیمت تتر از <b>${faNum(target)}</b> تومان عبور کرد، فوراً به شما پیام می‌دهم.\n<i>نرخ فعلی: ${faNum(current)} تومان</i>`, {
+          reply_markup: pvReplyKeyboard(current),
+        });
+        return;
+      }
+    }
+
+    if (text === BTN.SHARE || /ارسال به گروه/.test(text)) {
+      await send(chatId, `برای ارسال تابلوی زنده قیمت به گروه‌ها و کانال‌ها، روی دکمه‌ی زیر بزنید و چت مقصد را انتخاب کنید:`, {
+        reply_markup: {
+          inline_keyboard: [[{ text: '👥 انتخاب گروه و ارسال تابلوی زنده ↗️', switch_inline_query: '' }]],
+        },
+      });
+      return;
+    }
+
+    if (text === BTN.TOUCH_CHART || /تابلوی لمسی/.test(text)) {
+      const market = await getMarketOverview();
+      const caption = marketOverviewCard(market);
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
+      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
+      return;
+    }
+
+    if (text === BTN.HOME || text === BTN.BACK || text === BTN.TETHER || PRICE_WORDS.test(text)) {
+      const snapshot = await refresh();
+      const today = await getDay(snapshot.tehranNow.day);
+      const days = await recentDays(7);
+      const card = priceCard(snapshot, { timeframe: '24h', today, days });
+      await send(chatId, card, {
+        reply_markup: priceKeyboard(snapshot, { activeTimeframe: '24h' }),
+      });
+      return;
+    }
+
+    if (text === BTN.SETTINGS || /تنظیمات/.test(text)) {
+      await send(chatId, settingsMessage(false), {
+        reply_markup: settingsKeyboard(false),
+      });
+      return;
+    }
+
+    if (text === BTN.ALERT || /هشدار/.test(text)) {
+      const snapshot = await refresh();
+      const alerts = await listAlerts(chatId);
+      const current = Math.round(snapshot.stats.median);
+      await send(chatId, alertMenuMessage(current, alerts), {
+        reply_markup: alertInteractiveKeyboard(current, alerts),
+      });
+      return;
+    }
+
     if (text === BTN.MARKET || WIDGET_WORDS.test(text)) {
       const market = await getMarketOverview();
       const caption = marketOverviewCard(market);
@@ -87,14 +159,6 @@ export default async function (message, ctx) {
       const caption = fiatCard(market);
       const sent = await sendMarketWidget(chatId, market, { initialTab: 'fiat', caption });
       if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('fiat') });
-      return;
-    }
-
-    if (text === BTN.TETHER || PRICE_WORDS.test(text)) {
-      const market = await getMarketOverview();
-      const caption = priceCard(market.tether || (await refresh()));
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'tether', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
       return;
     }
 
@@ -191,23 +255,36 @@ export default async function (message, ctx) {
       return;
     }
 
-    // A bare number is almost always someone reaching for a price alert.
+    // A bare number: offer a 1-tap button to register an alert immediately!
     const numeric = toEnDigits(text).replace(/[^\d]/g, '');
     if (numeric && numeric.length >= 5 && numeric.length <= 9) {
       const price = Number(numeric);
+      const snapshot = await refresh();
+      const current = Math.round(snapshot.stats.median);
+      const direction = price >= current ? 'above' : 'below';
+      const word = direction === 'above' ? 'عبور قیمت از' : 'افت قیمت به زیر';
+
       await send(chatId,
-        `عدد <b>${faNum(price)}</b> را دیدم.\n\n` +
-        `اگر می‌خواهید وقتی قیمت به این عدد رسید خبرتان کنم، بنویسید:\n` +
-        `<code>/alert ${numeric}</code>`);
+        `🎯 <b>تنظیم سریع هشدار قیمت تتر</b>\n\n` +
+        `آیا مایلید به محض ${word} <b>${faNum(price)}</b> تومان به شما اطلاع دهم؟\n\n` +
+        `<i>نرخ لحظه‌ای تتر: ${faNum(current)} تومان</i>`, {
+          reply_markup: {
+            inline_keyboard: [
+              [{ text: `⏰ بله، فعال‌سازی هشدار ${faNum(price)} ت`, callback_data: `${CB.ALERT_SET}:${price}` }],
+              [{ text: '🔙 انصراف', callback_data: CB.REFRESH }],
+            ],
+          },
+        });
       return;
     }
 
-    const market = await getMarketOverview();
-    const caption = startMessage(from ? from.first_name : '');
-    const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
-    if (!sent) {
-      await send(chatId, caption, { reply_markup: mainKeyboard() });
-    }
+    const snapshot = await refresh();
+    const today = await getDay(snapshot.tehranNow.day);
+    const days = await recentDays(7);
+    const card = priceCard(snapshot, { timeframe: '24h', today, days });
+    await send(chatId, card, {
+      reply_markup: priceKeyboard(snapshot, { activeTimeframe: '24h' }),
+    });
   } catch (err) {
     console.error('message handler failed:', err && (err.description || err.message));
     if (isPrivate) {
