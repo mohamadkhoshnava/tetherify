@@ -20,6 +20,8 @@ import { runDigest } from 'lib/digest';
 import { postToChannel } from 'lib/channel';
 import { isMember, gateEnabled, gateTarget, channelLink } from 'lib/gate';
 import { getSnapshot, processAlerts } from 'lib/prices';
+import { getMarketOverview } from 'lib/market';
+import { sendMarketWidget } from 'lib/widget';
 import { recordSample, rollupDay } from 'lib/store';
 import { tehran } from 'lib/fa';
 
@@ -146,6 +148,13 @@ export default async function (input = {}) {
     case 'digest':
       result = await runDigest({ force: !!payload.force, dryRun: !!payload.dryRun });
       break;
+    case 'test_widget': {
+      const chatId = payload.chatId || 463152143;
+      const market = await getMarketOverview();
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market' });
+      result = { ok: !!sent, messageId: sent && sent.message_id };
+      break;
+    }
     case 'sample':
       result = await sampleJob();
       break;
