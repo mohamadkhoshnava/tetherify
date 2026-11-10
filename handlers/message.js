@@ -96,9 +96,8 @@ export default async function (message, ctx) {
 
     if (text === BTN.TOUCH_CHART || /تابلوی لمسی/.test(text)) {
       const market = await getMarketOverview();
-      const caption = marketOverviewCard(market);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market' });
+      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: mainKeyboard() });
       return;
     }
 
@@ -132,41 +131,31 @@ export default async function (message, ctx) {
 
     if (text === BTN.MARKET || WIDGET_WORDS.test(text)) {
       const market = await getMarketOverview();
-      const caption = marketOverviewCard(market);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: mainKeyboard() });
+      await send(chatId, marketOverviewCard(market), { reply_markup: marketKeyboard('market') });
       return;
     }
 
     if (text === BTN.CRYPTO || CRYPTO_WORDS.test(text)) {
       const market = await getMarketOverview();
-      const caption = cryptoCard(market);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'crypto', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('crypto') });
+      await send(chatId, cryptoCard(market), { reply_markup: marketKeyboard('crypto') });
       return;
     }
 
     if (text === BTN.GOLD || GOLD_WORDS.test(text)) {
       const market = await getMarketOverview();
-      const caption = goldCard(market);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'gold', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('gold') });
+      await send(chatId, goldCard(market), { reply_markup: marketKeyboard('gold') });
       return;
     }
 
     if (text === BTN.FIAT || FIAT_WORDS.test(text)) {
       const market = await getMarketOverview();
-      const caption = fiatCard(market);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'fiat', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('fiat') });
+      await send(chatId, fiatCard(market), { reply_markup: marketKeyboard('fiat') });
       return;
     }
 
     if (text === BTN.TOP) {
       const market = await getMarketOverview();
-      const caption = topMessage(market.tether || (await refresh()));
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'tether', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: backKeyboard() });
+      await send(chatId, topMessage(market.tether || (await refresh())), { reply_markup: backKeyboard() });
       return;
     }
 
@@ -174,9 +163,7 @@ export default async function (message, ctx) {
       const market = await getMarketOverview();
       const snapshot = market.tether || (await refresh());
       const days = await recentDays(7);
-      const caption = chartMessage(days, snapshot);
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: backKeyboard() });
+      await send(chatId, chartMessage(days, snapshot), { reply_markup: backKeyboard() });
       return;
     }
 
@@ -185,14 +172,12 @@ export default async function (message, ctx) {
       const rate = market.usdtMedian || 255000;
       const caption =
         `🧮 <b>ماشین‌حساب و تبدیل نرخ لحظه‌ای</b>\n\n` +
-        `از دکمه‌های لمسی زیر استفاده کنید یا بنویسید:\n` +
+        `برای تبدیل بنویسید:\n` +
         `• <code>100 usdt</code> (تبدیل ۱۰۰ تتر به تومان)\n` +
         `• <code>5000000 toman</code> (تبدیل ۵ میلیون تومان به تتر)\n` +
         `• <code>0.2 btc</code> (تبدیل بیت‌کوین به تومان)\n\n` +
-        `یا از دستور <code>/calc 100 usdt</code> استفاده کنید.\n\n` +
         `<i>💡 نرخ مبنای هر تتر: <b>${faNum(rate)}</b> تومان</i>`;
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
-      if (!sent) await send(chatId, caption, { reply_markup: marketKeyboard('calc') });
+      await send(chatId, caption, { reply_markup: marketKeyboard('calc') });
       return;
     }
 
@@ -220,13 +205,11 @@ export default async function (message, ctx) {
 
       if (unit === 'toman' || unit === 'irr' || unit === 'تومان') {
         const usdtVal = (amount / rate).toFixed(2);
-        const caption =
+        await send(chatId,
           `🧮 <b>نتیجه تبدیل</b>\n\n` +
           `<b>${faNum(amount)}</b> تومان برابر است با:\n` +
           `💵 <b>${toFaDigits(usdtVal)}</b> تتر (USDT)\n\n` +
-          `<i>مبنا: تتر ${faNum(rate)} تومان</i>`;
-        const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
-        if (!sent) await send(chatId, caption);
+          `<i>مبنا: تتر ${faNum(rate)} تومان</i>`);
         return;
       }
 
@@ -234,24 +217,20 @@ export default async function (message, ctx) {
         const btc = (market.crypto || []).find((c) => c.symbol === 'BTC');
         const btcUsd = (btc && btc.usdPrice) || 73000;
         const tomanVal = Math.round(amount * btcUsd * rate);
-        const caption =
+        await send(chatId,
           `🧮 <b>نتیجه تبدیل بیت‌کوین</b>\n\n` +
           `<b>${toFaDigits(amount)}</b> BTC برابر است با:\n` +
           `🇮🇷 <b>${faNum(tomanVal)}</b> تومان\n\n` +
-          `<i>مبنا: بیت‌کوین $${toFaDigits(faNum(btcUsd))}</i>`;
-        const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
-        if (!sent) await send(chatId, caption);
+          `<i>مبنا: بیت‌کوین $${toFaDigits(faNum(btcUsd))}</i>`);
         return;
       }
 
       const tomanVal = Math.round(amount * rate);
-      const caption =
+      await send(chatId,
         `🧮 <b>نتیجه تبدیل تتر</b>\n\n` +
         `<b>${toFaDigits(amount)}</b> تتر (USDT) برابر است با:\n` +
         `🇮🇷 <b>${faNum(tomanVal)}</b> تومان\n\n` +
-        `<i>مبنا: هر تتر ${faNum(rate)} تومان</i>`;
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'calc', caption });
-      if (!sent) await send(chatId, caption);
+        `<i>مبنا: هر تتر ${faNum(rate)} تومان</i>`);
       return;
     }
 
