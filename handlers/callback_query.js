@@ -6,11 +6,15 @@
 import { api } from 'sdk';
 import { CB } from 'lib/config';
 import { refresh } from 'lib/prices';
+import { getMarketOverview } from 'lib/market';
+import { sendMarketWidget } from 'lib/widget';
 import {
   priceCard, listMessage, topMessage, excludedMessage, avgMessage, chartMessage,
-  helpMessage, startMessage,
+  helpMessage, startMessage, cryptoCard, goldCard, fiatCard, marketOverviewCard,
 } from 'lib/format';
-import { mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard } from 'lib/keyboard';
+import {
+  mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard, marketKeyboard,
+} from 'lib/keyboard';
 import { getDay, recentDays, setSubscribed, isAdmin, touchChat } from 'lib/store';
 import { isMember, gateEnabled, gateTarget, gatePrompt, forgetMembership } from 'lib/gate';
 
@@ -121,6 +125,44 @@ export default async function (query) {
 
       case CB.HELP: {
         await edit(query, helpMessage(isAdmin(query.from && query.from.id)), backKeyboard());
+        break;
+      }
+
+      case CB.WIDGET: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market);
+        toast = sent ? 'ویجت زنده ارسال شد 📱' : 'پیش‌نمایش تابلوی زنده فعال شد';
+        if (!sent) {
+          await edit(query, marketOverviewCard(market), marketKeyboard('market'));
+        }
+        break;
+      }
+
+      case CB.CRYPTO: {
+        const market = await getMarketOverview();
+        await edit(query, cryptoCard(market), marketKeyboard('crypto'));
+        toast = 'ارزهای دیجیتال';
+        break;
+      }
+
+      case CB.GOLD: {
+        const market = await getMarketOverview();
+        await edit(query, goldCard(market), marketKeyboard('gold'));
+        toast = 'طلا و سکه';
+        break;
+      }
+
+      case CB.FIAT: {
+        const market = await getMarketOverview();
+        await edit(query, fiatCard(market), marketKeyboard('fiat'));
+        toast = 'ارز و دلار';
+        break;
+      }
+
+      case CB.MARKET: {
+        const market = await getMarketOverview();
+        await edit(query, marketOverviewCard(market), marketKeyboard('market'));
+        toast = 'خلاصه بازار';
         break;
       }
 

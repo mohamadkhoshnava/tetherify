@@ -44,7 +44,13 @@ that produced it.
 ### In private chat
 | Command | |
 |---|---|
-| `/price` `/p` | Live market summary: cheapest buy, best sell, average, median, range |
+| `/widget` `/w` | **Interactive Mini-Widget (Bot API 10.4 / Layer 233)**: Live touch card with Crypto, Gold, Fiat, Exchanges, and quick Calculator inside chat bubble |
+| `/crypto` `/c` | Live prices of top cryptocurrencies (BTC, ETH, TON, SOL, USDT, DOGE, XRP, TRX, BNB) in $ and Tomans |
+| `/gold` `/g` | Gold 18k, Mesghal, Ounce, and Iranian Coins (Emami, Bahar, Nim, Rob, Gerami) |
+| `/currency` `/dollar` | Free market forex quotes (USD, EUR, AED, GBP, TRY, CAD, AUD) |
+| `/market` `/all` | Comprehensive all-in-one financial markets dashboard |
+| `/calc <amount> [coin]` | Fast currency converter (e.g. `/calc 100 usdt`, `/calc 0.5 btc`) |
+| `/price` `/p` | Live Tether market summary: cheapest buy, best sell, average, median, range |
 | `/list` | Every trusted exchange, cheapest first, paginated |
 | `/top` | Five best exchanges to buy from and to sell to |
 | `/excluded` `/ex` | Which quotes were thrown out and exactly why |
@@ -55,8 +61,7 @@ that produced it.
 | `/subscribe` | Daily report at 21:00 Tehran |
 | `/about` · `/help` · `/id` | |
 
-Plain language works too: "قیمت چنده؟" gets a price card, and a bare number
-offers to set an alert.
+Plain language works too: "ویجت", "کریپتو", "طلا", "سکه", "دلار", "قیمت چنده؟", and bare numbers offer to set an alert.
 
 ### Forced channel membership
 Private-chat users must be members of [@tetherify](https://t.me/tetherify)
