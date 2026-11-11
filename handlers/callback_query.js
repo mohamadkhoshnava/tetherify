@@ -8,6 +8,7 @@ import { CB, BRAND } from 'lib/config';
 import { refresh } from 'lib/prices';
 import { getMarketOverview } from 'lib/market';
 import { sendMarketWidget } from 'lib/widget';
+import { sendRichMarketCard, editRichMarketCard } from 'lib/rich';
 import { faNum } from 'lib/fa';
 import {
   priceCard, listMessage, topMessage, excludedMessage, avgMessage, chartMessage,
@@ -16,7 +17,7 @@ import {
 } from 'lib/format';
 import {
   mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard, marketKeyboard,
-  priceKeyboard, alertInteractiveKeyboard, alertListKeyboard, settingsKeyboard, widgetKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, alertListKeyboard, settingsKeyboard, widgetKeyboard, richCardKeyboard,
 } from 'lib/keyboard';
 import {
   getDay, recentDays, setSubscribed, isAdmin, touchChat,
@@ -25,9 +26,10 @@ import {
 import { isMember, gateEnabled, gateTarget, gatePrompt, forgetMembership } from 'lib/gate';
 
 async function edit(query, text, markup) {
-  if (!query.message.text) {
+  const msg = query.message;
+  if (msg.widget || (!msg.text && !msg.rich_message)) {
     return api.sendMessage({
-      chat_id: query.message.chat.id,
+      chat_id: msg.chat.id,
       text,
       parse_mode: 'HTML',
       disable_web_page_preview: true,
@@ -36,8 +38,8 @@ async function edit(query, text, markup) {
   }
   try {
     await api.editMessageText({
-      chat_id: query.message.chat.id,
-      message_id: query.message.message_id,
+      chat_id: msg.chat.id,
+      message_id: msg.message_id,
       text,
       parse_mode: 'HTML',
       disable_web_page_preview: true,
@@ -45,7 +47,16 @@ async function edit(query, text, markup) {
     });
   } catch (err) {
     // 400 "message is not modified" just means the price has not moved.
+    const desc = String(err && err.description || '');
+    if (desc.includes('message is not modified')) return;
     if (!err || err.code !== 400) throw err;
+    return api.sendMessage({
+      chat_id: msg.chat.id,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: markup,
+    });
   }
 }
 
@@ -64,8 +75,8 @@ export default async function (query) {
       await forgetMembership(userId);
       const ok = await isMember(userId, { fresh: true });
       if (ok) {
-        const snapshot = await refresh();
-        await edit(query, priceCard(snapshot), mainKeyboard());
+        const market = await getMarketOverview();
+        await editRichMarketCard(query, market, { tab: 'market', reply_markup: richCardKeyboard(market, 'market') });
         toast = 'خوش آمدید! ✅';
       } else {
         toast = 'هنوز عضو کانال نیستید';
@@ -92,12 +103,34 @@ export default async function (query) {
 
       case CB.REFRESH: {
         const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market, {
-          initialTab: 'tether',
-          caption: '🔄 <b>نرخ لحظه‌ای تتر در صرافی‌های معتبر</b>',
-          reply_markup: widgetKeyboard('tether'),
+        const sent = await editRichMarketCard(query, market, {
+          tab: 'tether',
+          timeframe: '7d',
+          reply_markup: richCardKeyboard(market, 'tether'),
         });
-        toast = sent ? 'به‌روزرسانی شد 🔄' : 'به‌روزرسانی انجام شد';
+        toast = sent ? 'تتر به‌روزرسانی شد 🔄' : '';
+        break;
+      }
+
+      case CB.TF_24H: {
+        const market = await getMarketOverview();
+        await editRichMarketCard(query, market, {
+          tab: 'tether',
+          timeframe: '24h',
+          reply_markup: richCardKeyboard(market, 'tether'),
+        });
+        toast = 'نمای ۲۴ ساعته ⏰';
+        break;
+      }
+
+      case CB.TF_7D: {
+        const market = await getMarketOverview();
+        await editRichMarketCard(query, market, {
+          tab: 'tether',
+          timeframe: '7d',
+          reply_markup: richCardKeyboard(market, 'tether'),
+        });
+        toast = 'نمای ۷ روزه 📊';
         break;
       }
 
@@ -105,45 +138,52 @@ export default async function (query) {
       case CB.WIDGET:
       case CB.MARKET: {
         const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market, {
-          initialTab: 'market',
-          caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
-          reply_markup: widgetKeyboard('market'),
+        await editRichMarketCard(query, market, {
+          tab: 'market',
+          reply_markup: richCardKeyboard(market, 'market'),
         });
-        toast = sent ? 'تابلوی بازار 📊' : 'خطا در باز کردن تابلو';
+        toast = 'تابلوی بازار 📊';
         break;
       }
 
       case CB.CRYPTO: {
         const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market, {
-          initialTab: 'crypto',
-          caption: '💎 <b>تابلوی زنده قیمت روز ارزهای دیجیتال (Crypto)</b>',
-          reply_markup: widgetKeyboard('crypto'),
+        await editRichMarketCard(query, market, {
+          tab: 'crypto',
+          reply_markup: richCardKeyboard(market, 'crypto'),
         });
-        toast = sent ? 'ارزهای دیجیتال 💎' : '';
+        toast = 'ارزهای دیجیتال 💎';
         break;
       }
 
       case CB.GOLD: {
         const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market, {
-          initialTab: 'gold',
-          caption: '🪙 <b>تابلوی زنده قیمت روز طلا و انواع سکه</b>',
-          reply_markup: widgetKeyboard('gold'),
+        await editRichMarketCard(query, market, {
+          tab: 'gold',
+          reply_markup: richCardKeyboard(market, 'gold'),
         });
-        toast = sent ? 'طلا و سکه 🪙' : '';
+        toast = 'طلا و سکه 🪙';
         break;
       }
 
       case CB.FIAT: {
         const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market, {
-          initialTab: 'fiat',
-          caption: '💵 <b>تابلوی زنده قیمت روز اسکناس و ارزهای آزاد</b>',
-          reply_markup: widgetKeyboard('fiat'),
+        await editRichMarketCard(query, market, {
+          tab: 'fiat',
+          reply_markup: richCardKeyboard(market, 'fiat'),
         });
-        toast = sent ? 'دلار و ارز 💵' : '';
+        toast = 'دلار و ارز 💵';
+        break;
+      }
+
+      case CB.TOUCH: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'market',
+          caption: '📱 <b>تابلوی لمسی و تعاملی تتریفای</b>',
+          reply_markup: widgetKeyboard('market'),
+        });
+        toast = sent ? 'تابلوی لمسی 📱' : 'خطا در باز کردن تابلو';
         break;
       }
 

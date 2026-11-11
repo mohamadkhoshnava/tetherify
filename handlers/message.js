@@ -7,23 +7,43 @@ import { ensureMember } from 'lib/gate';
 import { refresh } from 'lib/prices';
 import { getMarketOverview } from 'lib/market';
 import { sendMarketWidget } from 'lib/widget';
+import { sendRichMarketCard } from 'lib/rich';
 import {
   priceCard, cryptoCard, goldCard, fiatCard, marketOverviewCard,
   topMessage, chartMessage, helpMessage, alertMenuMessage, settingsMessage,
 } from 'lib/format';
 import {
   mainKeyboard, marketKeyboard, backKeyboard, BTN, pvReplyKeyboard,
-  priceKeyboard, alertInteractiveKeyboard, settingsKeyboard, widgetKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, settingsKeyboard, widgetKeyboard, richCardKeyboard,
 } from 'lib/keyboard';
 import { CB, BRAND } from 'lib/config';
 import { toEnDigits, faNum, toFaDigits } from 'lib/fa';
 
 // Natural language matchers
-const WIDGET_WORDS = /(ویجت|widget|تابلو|پنل|لمسی)/i;
+const WIDGET_WORDS = /(ویجت|widget|لمسی)/i;
 const CRYPTO_WORDS = /(کریپتو|crypto|ارز\s*دیجیتال|بیت\s*کوین|بیتکوین|اتریوم|تون\s*کوین|سولانا|دوج)/i;
 const GOLD_WORDS = /(طلا|سکه|gold|coin|مثقال|مظنه|انس|امامی|بهار\s*آزادی|نیم\s*سکه|ربع\s*سکه)/i;
 const FIAT_WORDS = /(ارز|دلار|یورو|درهم|پوند|لیر|dollar|forex)/i;
 const PRICE_WORDS = /(قیمت|تتر|usdt|tether|نرخ|چنده|چقدره|بازار)/i;
+
+async function replyRichTab(chatId, tab) {
+  const market = await getMarketOverview();
+  const kb = richCardKeyboard(market, tab);
+  const sent = await sendRichMarketCard(chatId, market, {
+    tab,
+    timeframe: '7d',
+    reply_markup: kb,
+  });
+  if (sent) return;
+
+  const fallback =
+    tab === 'crypto' ? cryptoCard(market) :
+    tab === 'gold' ? goldCard(market) :
+    tab === 'fiat' ? fiatCard(market) :
+    tab === 'tether' ? priceCard(market.tether || (await refresh())) :
+    marketOverviewCard(market);
+  await send(chatId, fallback, { reply_markup: kb });
+}
 
 export default async function (message, ctx) {
   if (!message || !message.chat) return;
@@ -97,24 +117,12 @@ export default async function (message, ctx) {
     }
 
     if (text === BTN.TOUCH_CHART || text === BTN.HOME || text === BTN.BACK || /تابلوی/.test(text)) {
-      const market = await getMarketOverview();
-      const caption = `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>\n<i>نرخ لحظه‌ای تتر، ارزهای دیجیتال، طلا، سکه و دلار</i>`;
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption, reply_markup: widgetKeyboard('market') });
-      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
+      await replyRichTab(chatId, 'market');
       return;
     }
 
     if (PRICE_WORDS.test(text)) {
-      const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market, {
-        initialTab: 'tether',
-        caption: '🔄 <b>نرخ لحظه‌ای تتر در صرافی‌های معتبر</b>',
-        reply_markup: widgetKeyboard('tether'),
-      });
-      if (!sent) {
-        const snapshot = market.tether || (await refresh());
-        await send(chatId, priceCard(snapshot), { reply_markup: widgetKeyboard('tether') });
-      }
+      await replyRichTab(chatId, 'tether');
       return;
     }
 
@@ -139,43 +147,25 @@ export default async function (message, ctx) {
       const market = await getMarketOverview();
       const sent = await sendMarketWidget(chatId, market, {
         initialTab: 'market',
-        caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
+        caption: `📱 <b>تابلوی لمسی و تعاملی ${BRAND}</b>`,
         reply_markup: widgetKeyboard('market'),
       });
-      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
+      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: richCardKeyboard(market, 'market') });
       return;
     }
 
     if (text === BTN.CRYPTO || CRYPTO_WORDS.test(text)) {
-      const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market, {
-        initialTab: 'crypto',
-        caption: '💎 <b>تابلوی زنده قیمت روز ارزهای دیجیتال (Crypto)</b>',
-        reply_markup: widgetKeyboard('crypto'),
-      });
-      if (!sent) await send(chatId, cryptoCard(market), { reply_markup: widgetKeyboard('crypto') });
+      await replyRichTab(chatId, 'crypto');
       return;
     }
 
     if (text === BTN.GOLD || GOLD_WORDS.test(text)) {
-      const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market, {
-        initialTab: 'gold',
-        caption: '🪙 <b>تابلوی زنده قیمت روز طلا و انواع سکه</b>',
-        reply_markup: widgetKeyboard('gold'),
-      });
-      if (!sent) await send(chatId, goldCard(market), { reply_markup: widgetKeyboard('gold') });
+      await replyRichTab(chatId, 'gold');
       return;
     }
 
     if (text === BTN.FIAT || FIAT_WORDS.test(text)) {
-      const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market, {
-        initialTab: 'fiat',
-        caption: '💵 <b>تابلوی زنده قیمت روز اسکناس و ارزهای آزاد</b>',
-        reply_markup: widgetKeyboard('fiat'),
-      });
-      if (!sent) await send(chatId, fiatCard(market), { reply_markup: widgetKeyboard('fiat') });
+      await replyRichTab(chatId, 'fiat');
       return;
     }
 
@@ -257,15 +247,7 @@ export default async function (message, ctx) {
       return;
     }
 
-    const market = await getMarketOverview();
-    const sent = await sendMarketWidget(chatId, market, {
-      initialTab: 'market',
-      caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
-      reply_markup: widgetKeyboard('market'),
-    });
-    if (!sent) {
-      await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
-    }
+    await replyRichTab(chatId, 'market');
   } catch (err) {
     console.error('message handler failed:', err && (err.description || err.message));
     if (isPrivate) {
