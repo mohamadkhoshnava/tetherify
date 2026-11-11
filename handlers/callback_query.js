@@ -4,7 +4,7 @@
 // does not fill up with near-identical price cards.
 
 import { api } from 'sdk';
-import { CB } from 'lib/config';
+import { CB, BRAND } from 'lib/config';
 import { refresh } from 'lib/prices';
 import { getMarketOverview } from 'lib/market';
 import { sendMarketWidget } from 'lib/widget';
@@ -16,7 +16,7 @@ import {
 } from 'lib/format';
 import {
   mainKeyboard, listKeyboard, backKeyboard, subscribeKeyboard, marketKeyboard,
-  priceKeyboard, alertInteractiveKeyboard, alertListKeyboard, settingsKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, alertListKeyboard, settingsKeyboard, widgetKeyboard,
 } from 'lib/keyboard';
 import {
   getDay, recentDays, setSubscribed, isAdmin, touchChat,
@@ -25,6 +25,15 @@ import {
 import { isMember, gateEnabled, gateTarget, gatePrompt, forgetMembership } from 'lib/gate';
 
 async function edit(query, text, markup) {
+  if (!query.message.text) {
+    return api.sendMessage({
+      chat_id: query.message.chat.id,
+      text,
+      parse_mode: 'HTML',
+      disable_web_page_preview: true,
+      reply_markup: markup,
+    });
+  }
   try {
     await api.editMessageText({
       chat_id: query.message.chat.id,
@@ -81,23 +90,71 @@ export default async function (query) {
       case 'noop':
         break;
 
-      case CB.REFRESH:
-      case CB.HOME:
-      case CB.TF_24H: {
-        const snapshot = await refresh({ force: key === CB.REFRESH });
-        const today = await getDay(snapshot.tehranNow.day);
-        const days = await recentDays(7);
-        await edit(query, priceCard(snapshot, { timeframe: '24h', today, days }), priceKeyboard(snapshot, { activeTimeframe: '24h' }));
-        toast = key === CB.REFRESH ? 'به‌روزرسانی شد 🔄' : '';
+      case CB.REFRESH: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'tether',
+          caption: '🔄 <b>نرخ لحظه‌ای تتر در صرافی‌های معتبر</b>',
+          reply_markup: widgetKeyboard('tether'),
+        });
+        toast = sent ? 'به‌روزرسانی شد 🔄' : 'به‌روزرسانی انجام شد';
         break;
       }
 
-      case CB.TF_7D: {
-        const snapshot = await refresh();
-        const today = await getDay(snapshot.tehranNow.day);
-        const days = await recentDays(7);
-        await edit(query, priceCard(snapshot, { timeframe: '7d', today, days }), priceKeyboard(snapshot, { activeTimeframe: '7d' }));
-        toast = 'نمای ۷ روزه 🥞';
+      case CB.HOME:
+      case CB.WIDGET:
+      case CB.MARKET: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'market',
+          caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
+          reply_markup: widgetKeyboard('market'),
+        });
+        toast = sent ? 'تابلوی بازار 📊' : 'خطا در باز کردن تابلو';
+        break;
+      }
+
+      case CB.CRYPTO: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'crypto',
+          caption: '💎 <b>تابلوی زنده قیمت روز ارزهای دیجیتال (Crypto)</b>',
+          reply_markup: widgetKeyboard('crypto'),
+        });
+        toast = sent ? 'ارزهای دیجیتال 💎' : '';
+        break;
+      }
+
+      case CB.GOLD: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'gold',
+          caption: '🪙 <b>تابلوی زنده قیمت روز طلا و انواع سکه</b>',
+          reply_markup: widgetKeyboard('gold'),
+        });
+        toast = sent ? 'طلا و سکه 🪙' : '';
+        break;
+      }
+
+      case CB.FIAT: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'fiat',
+          caption: '💵 <b>تابلوی زنده قیمت روز اسکناس و ارزهای آزاد</b>',
+          reply_markup: widgetKeyboard('fiat'),
+        });
+        toast = sent ? 'دلار و ارز 💵' : '';
+        break;
+      }
+
+      case CB.CALC: {
+        const market = await getMarketOverview();
+        const sent = await sendMarketWidget(query.message.chat.id, market, {
+          initialTab: 'calc',
+          caption: '🧮 <b>ماشین‌حساب و محاسبه‌گر هوشمند تتر</b>',
+          reply_markup: widgetKeyboard('market'),
+        });
+        toast = sent ? 'ماشین‌حساب 🧮' : '';
         break;
       }
 
@@ -187,49 +244,11 @@ export default async function (query) {
         break;
       }
 
-      case CB.WIDGET: {
-        const market = await getMarketOverview();
-        const sent = await sendMarketWidget(query.message.chat.id, market);
-        toast = sent ? 'تابلوی بازار ارسال شد 📱' : 'تابلوی بازار فعال شد';
-        if (!sent) {
-          await edit(query, marketOverviewCard(market), marketKeyboard('market'));
-        }
-        break;
-      }
-
-      case CB.CRYPTO: {
-        const market = await getMarketOverview();
-        await edit(query, cryptoCard(market), marketKeyboard('crypto'));
-        toast = 'ارزهای دیجیتال';
-        break;
-      }
-
-      case CB.GOLD: {
-        const market = await getMarketOverview();
-        await edit(query, goldCard(market), marketKeyboard('gold'));
-        toast = 'طلا و سکه';
-        break;
-      }
-
-      case CB.FIAT: {
-        const market = await getMarketOverview();
-        await edit(query, fiatCard(market), marketKeyboard('fiat'));
-        toast = 'ارز و دلار';
-        break;
-      }
-
-      case CB.MARKET: {
-        const market = await getMarketOverview();
-        await edit(query, marketOverviewCard(market), marketKeyboard('market'));
-        toast = 'خلاصه بازار';
-        break;
-      }
-
       case CB.SUB: {
         const on = arg === '1';
         await setSubscribed(query.message.chat.id, on);
         toast = on ? 'گزارش روزانه فعال شد' : 'گزارش روزانه غیرفعال شد';
-        await edit(query, query.message.text || '', subscribeKeyboard(on));
+        await edit(query, settingsMessage(on), settingsKeyboard(on));
         break;
       }
 

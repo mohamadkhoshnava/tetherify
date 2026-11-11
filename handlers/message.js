@@ -13,8 +13,9 @@ import {
 } from 'lib/format';
 import {
   mainKeyboard, marketKeyboard, backKeyboard, BTN, pvReplyKeyboard,
-  priceKeyboard, alertInteractiveKeyboard, settingsKeyboard,
+  priceKeyboard, alertInteractiveKeyboard, settingsKeyboard, widgetKeyboard,
 } from 'lib/keyboard';
+import { CB, BRAND } from 'lib/config';
 import { toEnDigits, faNum, toFaDigits } from 'lib/fa';
 
 // Natural language matchers
@@ -60,19 +61,20 @@ export default async function (message, ctx) {
 
     if (!text.trim()) return;
 
-    // 1. Reply keyboard 1-tap quick actions inspired by Dollar Chande
-    if (/^💸\s*کپی/i.test(text)) {
-      const rawNum = text.match(/[\d,]+/);
-      const numStr = rawNum ? rawNum[0].replace(/,/g, '') : '255000';
-      const enNum = toEnDigits(numStr);
-      await send(chatId, `📋 <b>کپی سریع نرخ تتر:</b>\n<code>${enNum}</code>\n<i>(روی عدد لمس کنید تا در کلیپ‌بورد کپی شود)</i>`);
+    // 1. Reply keyboard 1-tap quick actions
+    if (/^(?:💸\s*)?کپی\b/i.test(text)) {
+      const enText = toEnDigits(text);
+      const rawNum = enText.match(/[\d,]+/);
+      const enNum = rawNum ? rawNum[0].replace(/,/g, '') : '255000';
+      await send(chatId, `📋 <b>کپی سریع نرخ تتر:</b>\n<code>${enNum}</code>\n<i>(روی عدد بالا لمس کنید تا در کلیپ‌بورد کپی شود)</i>`);
       return;
     }
 
-    if (/^⏰\s*رد\s*شد\s*از/i.test(text)) {
-      const rawNum = text.match(/[\d,]+/);
+    if (/^(?:⏰\s*)?رد\s*شد\s*از/i.test(text)) {
+      const enText = toEnDigits(text);
+      const rawNum = enText.match(/[\d,]+/);
       const numStr = rawNum ? rawNum[0].replace(/,/g, '') : '';
-      const target = Number(toEnDigits(numStr));
+      const target = Number(numStr);
       if (target > 0) {
         const snapshot = await refresh();
         const current = Math.round(snapshot.stats.median);
@@ -94,21 +96,25 @@ export default async function (message, ctx) {
       return;
     }
 
-    if (text === BTN.TOUCH_CHART || /تابلوی لمسی/.test(text)) {
+    if (text === BTN.TOUCH_CHART || text === BTN.HOME || text === BTN.BACK || /تابلوی/.test(text)) {
       const market = await getMarketOverview();
-      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market' });
-      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: mainKeyboard() });
+      const caption = `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>\n<i>نرخ لحظه‌ای تتر، ارزهای دیجیتال، طلا، سکه و دلار</i>`;
+      const sent = await sendMarketWidget(chatId, market, { initialTab: 'market', caption, reply_markup: widgetKeyboard('market') });
+      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
       return;
     }
 
-    if (text === BTN.HOME || text === BTN.BACK || text === BTN.TETHER || PRICE_WORDS.test(text)) {
-      const snapshot = await refresh();
-      const today = await getDay(snapshot.tehranNow.day);
-      const days = await recentDays(7);
-      const card = priceCard(snapshot, { timeframe: '24h', today, days });
-      await send(chatId, card, {
-        reply_markup: priceKeyboard(snapshot, { activeTimeframe: '24h' }),
+    if (PRICE_WORDS.test(text)) {
+      const market = await getMarketOverview();
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'tether',
+        caption: '🔄 <b>نرخ لحظه‌ای تتر در صرافی‌های معتبر</b>',
+        reply_markup: widgetKeyboard('tether'),
       });
+      if (!sent) {
+        const snapshot = market.tether || (await refresh());
+        await send(chatId, priceCard(snapshot), { reply_markup: widgetKeyboard('tether') });
+      }
       return;
     }
 
@@ -129,69 +135,63 @@ export default async function (message, ctx) {
       return;
     }
 
-    if (text === BTN.MARKET || WIDGET_WORDS.test(text)) {
+    if (WIDGET_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, marketOverviewCard(market), { reply_markup: marketKeyboard('market') });
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'market',
+        caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
+        reply_markup: widgetKeyboard('market'),
+      });
+      if (!sent) await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
       return;
     }
 
     if (text === BTN.CRYPTO || CRYPTO_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, cryptoCard(market), { reply_markup: marketKeyboard('crypto') });
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'crypto',
+        caption: '💎 <b>تابلوی زنده قیمت روز ارزهای دیجیتال (Crypto)</b>',
+        reply_markup: widgetKeyboard('crypto'),
+      });
+      if (!sent) await send(chatId, cryptoCard(market), { reply_markup: widgetKeyboard('crypto') });
       return;
     }
 
     if (text === BTN.GOLD || GOLD_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, goldCard(market), { reply_markup: marketKeyboard('gold') });
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'gold',
+        caption: '🪙 <b>تابلوی زنده قیمت روز طلا و انواع سکه</b>',
+        reply_markup: widgetKeyboard('gold'),
+      });
+      if (!sent) await send(chatId, goldCard(market), { reply_markup: widgetKeyboard('gold') });
       return;
     }
 
     if (text === BTN.FIAT || FIAT_WORDS.test(text)) {
       const market = await getMarketOverview();
-      await send(chatId, fiatCard(market), { reply_markup: marketKeyboard('fiat') });
-      return;
-    }
-
-    if (text === BTN.TOP) {
-      const market = await getMarketOverview();
-      await send(chatId, topMessage(market.tether || (await refresh())), { reply_markup: backKeyboard() });
-      return;
-    }
-
-    if (text === BTN.CHART) {
-      const market = await getMarketOverview();
-      const snapshot = market.tether || (await refresh());
-      const days = await recentDays(7);
-      await send(chatId, chartMessage(days, snapshot), { reply_markup: backKeyboard() });
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'fiat',
+        caption: '💵 <b>تابلوی زنده قیمت روز اسکناس و ارزهای آزاد</b>',
+        reply_markup: widgetKeyboard('fiat'),
+      });
+      if (!sent) await send(chatId, fiatCard(market), { reply_markup: widgetKeyboard('fiat') });
       return;
     }
 
     if (text === BTN.CALC) {
       const market = await getMarketOverview();
-      const rate = market.usdtMedian || 255000;
-      const caption =
-        `🧮 <b>ماشین‌حساب و تبدیل نرخ لحظه‌ای</b>\n\n` +
-        `برای تبدیل بنویسید:\n` +
-        `• <code>100 usdt</code> (تبدیل ۱۰۰ تتر به تومان)\n` +
-        `• <code>5000000 toman</code> (تبدیل ۵ میلیون تومان به تتر)\n` +
-        `• <code>0.2 btc</code> (تبدیل بیت‌کوین به تومان)\n\n` +
-        `<i>💡 نرخ مبنای هر تتر: <b>${faNum(rate)}</b> تومان</i>`;
-      await send(chatId, caption, { reply_markup: marketKeyboard('calc') });
-      return;
-    }
-
-    if (text === BTN.ALERT) {
-      await send(chatId,
-        `🔔 <b>تنظیم هشدار قیمت تتر</b>\n\n` +
-        `برای ساخت هشدار، کافیست عدد مورد نظر را بنویسید (مثلاً <code>240000</code>) یا از دستور زیر استفاده کنید:\n` +
-        `<code>/alert 240000</code>\n\n` +
-        `فهرست هشدارهای فعال: /alerts`);
+      const sent = await sendMarketWidget(chatId, market, {
+        initialTab: 'calc',
+        caption: '🧮 <b>ماشین‌حساب و محاسبه‌گر هوشمند تتر</b>',
+        reply_markup: widgetKeyboard('market'),
+      });
+      if (!sent) await send(chatId, '🧮 <b>ماشین‌حساب تتر</b>', { reply_markup: widgetKeyboard('market') });
       return;
     }
 
     if (text === BTN.HELP) {
-      await send(chatId, helpMessage(isAdmin(userId)));
+      await send(chatId, helpMessage(isAdmin(userId)), { reply_markup: backKeyboard() });
       return;
     }
 
@@ -257,13 +257,15 @@ export default async function (message, ctx) {
       return;
     }
 
-    const snapshot = await refresh();
-    const today = await getDay(snapshot.tehranNow.day);
-    const days = await recentDays(7);
-    const card = priceCard(snapshot, { timeframe: '24h', today, days });
-    await send(chatId, card, {
-      reply_markup: priceKeyboard(snapshot, { activeTimeframe: '24h' }),
+    const market = await getMarketOverview();
+    const sent = await sendMarketWidget(chatId, market, {
+      initialTab: 'market',
+      caption: `📊 <b>تابلوی جامع بازارهای مالی ${BRAND}</b>`,
+      reply_markup: widgetKeyboard('market'),
     });
+    if (!sent) {
+      await send(chatId, marketOverviewCard(market), { reply_markup: widgetKeyboard('market') });
+    }
   } catch (err) {
     console.error('message handler failed:', err && (err.description || err.message));
     if (isPrivate) {
